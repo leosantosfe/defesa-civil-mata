@@ -7,20 +7,27 @@ from streamlit_folium import st_folium
 # --- CONFIGURAÇÃO DA INTERFACE WEB ---
 st.set_page_config(page_title="Defesa Civil Command Center", layout="centered")
 
-# --- FUNÇÃO COM ÁUDIO EMBUTIDO (BASE64) PARA BURLAR O BLOQUEIO ---
+# --- FUNÇÃO CORRIGIDA COM SCRIPT NATIVO (BURLA O BLOQUEIO DE ÁUDIO) ---
 def disparar_som_sirene():
-    # Este é um som de bipe curto de alerta em formato de texto. O navegador lê na hora!
-    audio_base64 = "T2dnUwACAAAAAAAAAAA9XwAAAAAAAN3SgX4BHgFpY2VjYXN0L0xBTUUX..." # Resumo do áudio limpo
-    # Link reserva público caso o navegador precise de um gatilho direto
-    som_url = "https://google.com"
-    
-    html_audio = f"""
-    <iframe src="{som_url}" allow="autoplay" style="display:none" id="iframeAudio"></iframe>
-    <audio autoplay loop>
-        <source src="{som_url}" type="audio/ogg">
-    </audio>
+    # Injeta um código JavaScript puro no navegador para soltar o bipe nativo do sistema
+    js_alarme = """
+    <script>
+        // Dispara o som de bipe nativo do processador do celular/PC
+        var context = new (window.AudioContext || window.webkitAudioContext)();
+        var osc = context.createOscillator();
+        osc.type = 'sawtooth'; // Som estilo sirene eletrônica
+        osc.frequency.setValueAtTime(800, context.currentTime); // Frequência do alarme
+        osc.connect(context.destination);
+        osc.start();
+        
+        // Faz o alarme apitar por 2 segundos e para sozinho
+        setTimeout(function(){ osc.stop(); }, 2000);
+        
+        // Abre o aviso visual na tela do operador
+        alert("🚨 ALERTA GERAL DE EVACUAÇÃO: RISCO IMINENTE DE INUNDAÇÃO!");
+    </script>
     """
-    st.components.v1.html(html_audio, height=0)
+    st.components.v1.html(js_alarme, height=0)
 
 # --- BANCO DE DADOS DE LICENÇAS ---
 CHAVES_SISTEMA = {
@@ -86,7 +93,6 @@ if cor_1 == "red" or cor_2 == "red":
     st.error("🚨 CRÍTICO: CONDIÇÃO DE INUNDAÇÃO ATINGIDA!")
     if st.button("🔊 ACIONAR ALARME DE EMERGÊNCIA"):
         disparar_som_sirene()
-        st.success("🔔 Alarme sonoro injetado com sucesso.")
 
 # --- PAINÉIS DE STATUS ---
 st.subheader(f"📊 Telemetria Operacional: {dados_foco['municipio']}")
@@ -111,6 +117,6 @@ folium.CircleMarker(location=[dados_foco["lat_1"], dados_foco["lon_1"]], radius=
 folium.CircleMarker(location=[dados_foco["lat_2"], dados_foco["lon_2"]], radius=25, color=cor_2, fill=True, fill_color=cor_2, fill_opacity=0.6).add_to(mapa)
 st_folium(mapa, width=700, height=400)
 
-# --- RECARGA AUTOMÁTICA ---
+# --- RECARGA AUTOMÁTICA EM 10 SEGUNDOS ---
 time.sleep(10)
 st.rerun()
