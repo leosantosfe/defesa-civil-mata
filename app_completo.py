@@ -2,93 +2,103 @@ import streamlit as st
 import folium
 import requests
 from streamlit_folium import st_folium
-from datetime import datetime
-
-# --- CONFIGURAÇÃO DA TRAVA DE SEGURANÇA ---
-DATA_LIMITE = datetime(2026, 8, 19)
-DATA_ATUAL = datetime.now()
-
-if DATA_ATUAL > DATA_LIMITE:
-    st.set_page_config(page_title="Licença Expirada", layout="centered")
-    st.error("❌ PERÍODO DE TESTES ENCERRADO")
-    st.subheader("O prazo de avaliação gratuita deste software expirou.")
-    st.stop()
 
 # --- CONFIGURAÇÃO DA INTERFACE WEB ---
-st.set_page_config(page_title="Defesa Civil Real-Time", layout="centered")
-st.caption(f"⚙️ Conexão Satélite Ativa - Licença válida até: {DATA_LIMITE.strftime('%d/%m/%Y')}")
-st.title("⛈️ Inteligência Climática Real - Mata de São João / BA")
-st.write("Monitoramento conectado a radares meteorológicos globais em tempo real.")
+st.set_page_config(page_title="Defesa Civil Command Center", layout="centered")
 
-# --- FUNÇÃO PARA BUSCAR DADOS DE SATÉLITE EM TEMPO REAL ---
-def buscar_dados_tempo_real(lat, lon):
-    try:
-        # Link da API que consulta o clima exato nas coordenadas geográficas
-        url = f"https://open-meteo.com{lat}&longitude={lon}&current=precipitation,soil_moisture_27_to_81cm&timezone=America%2FSao_Paulo"
-        resposta = requests.get(url).json()
-        
-        # Extrai os mm de chuva e a umidade do solo do satélite
-        chuva = resposta['current']['precipitation']
-        umidade = resposta['current']['soil_moisture_27_to_81cm']
-        
-        # Converte a umidade para formato de porcentagem aproximada (0-100)
-        umidade_porcentagem = min(int(umidade * 100), 100)
-        
-        return chuva, umidade_porcentagem
-    except:
-        # Caso a internet falhe, ele usa dados padrão seguros
-        return 0.0, 50
+# --- BANCO DE DADOS DE LICENÇAS ---
+CHAVES_SISTEMA = {
+    "MATA71": {
+        "municipio": "Mata de São João - BA", "lat_centro": -12.550, "lon_centro": -38.150,
+        "setor_1": "Sede Urbana (Centro)", "lat_1": -12.530, "lon_1": -38.300,
+        "setor_2": "Litoral (Praia do Forte)", "lat_2": -12.571, "lon_2": -38.001
+    },
+    "CAMA71": {
+        "municipio": "Camaçari - BA", "lat_centro": -12.697, "lon_centro": -38.324,
+        "setor_1": "Centro Urbano", "lat_1": -12.697, "lon_1": -38.324,
+        "setor_2": "Bairro Gleba C", "lat_2": -12.685, "lon_2": -38.330
+    }
+}
 
-# --- COORDENADAS OFICIAIS DOS DOIS SETORES ---
-LAT_SEDE, LON_SEDE = -12.530, -38.300
-LAT_LITORAL, LON_LITORAL = -12.571, -38.001
+st.title("⛈️ Centro de Comando e Simulação - Defesa Civil")
 
-# --- CHAMADA DOS DADOS REAIS DO SATÉLITE ---
-chuva_sede, umidade_sede = buscar_dados_tempo_real(LAT_SEDE, LON_SEDE)
-chuva_litoral, umidade_litoral = buscar_dados_tempo_real(LAT_LITORAL, LON_LITORAL)
+# --- TELA DE LOGIN POR CHAVE DE LICENÇA ---
+st.sidebar.header("🔑 Autenticação de Licença")
+chave_digitada = st.sidebar.text_input("Código de Acesso do Município:", type="password")
 
-# --- LÓGICA DE ALERTA INTELIGENTE ---
+if chave_digitada == "":
+    st.info("💡 Por favor, insira o Código de Licença da sua cidade na barra lateral esquerda para ativar o painel.")
+    st.stop()
+
+if chave_digitada not in CHAVES_SISTEMA:
+    st.error("❌ Código de Licença inválido ou expirado. Entre em contato com o suporte comercial.")
+    st.stop()
+
+dados_foco = CHAVES_SISTEMA[chave_digitada]
+st.success(f"✅ Conectado com sucesso para {dados_foco['municipio']}!")
+
+# --- 🛰️ CHAVE SELETORA: AUTOMÁTICO VS MANUAL ---
+st.sidebar.markdown("---")
+st.sidebar.header("📡 Modo de Operação")
+modo_operacao = st.sidebar.radio("Selecione a Origem dos Dados:", ("Satélite (Tempo Real)", "Simulador (Manual)"))
+
+# --- SE O MODO FOR MANUAL, LIBERA AS BARRAS PARA ARRUSTAR OS MM ---
+if modo_operacao == "Simulador (Manual)":
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🕹️ Controles do Simulador")
+    st.sidebar.write("Arraste para simular cenários de risco:")
+    
+    chuva_1 = st.sidebar.slider(f"Chuva {dados_foco['setor_1']} (mm)", 0.0, 100.0, 25.0)
+    umidade_1 = st.sidebar.slider(f"Solo {dados_foco['setor_1']} (%)", 0, 100, 50)
+    
+    chuva_2 = st.sidebar.slider(f"Chuva {dados_foco['setor_2']} (mm)", 0.0, 100.0, 25.0)
+    umidade_2 = st.sidebar.slider(f"Solo {dados_foco['setor_2']} (%)", 0, 100, 50)
+
+# --- SE O MODO FOR AUTOMÁTICO, BUSCA DIRETO NA INTERNET PELO SATÉLITE ---
+else:
+    def buscar_dados_tempo_real(lat, lon):
+        try:
+            url = f"https://open-meteo.com{lat}&longitude={lon}&current=precipitation,soil_moisture_27_to_81cm&timezone=America%2FSao_Paulo"
+            resposta = requests.get(url).json()
+            return resposta['current']['precipitation'], min(int(resposta['current']['soil_moisture_27_to_81cm'] * 100), 100)
+        except:
+            return 0.0, 50
+
+    chuva_1, umidade_1 = buscar_dados_tempo_real(dados_foco["lat_1"], dados_foco["lon_1"])
+    chuva_2, umidade_2 = buscar_dados_tempo_real(dados_foco["lat_2"], dados_foco["lon_2"])
+
+# --- LÓGICA DE GATILHO FIXA DO SISTEMA ---
 def calcular_risco(chuva, umidade):
-    if chuva > 40.0 and umidade > 70:
-        return "🚨 ALERTA MÁXIMO", "red", "Risco alto de alagamento imediato!"
-    elif chuva > 15.0 or umidade > 60:
-        return "⚠️ ATENÇÃO", "orange", "Condições instáveis sob monitoramento."
-    else:
-        return "✅ SEGURO", "green", "Área monitorada e segura."
+    if chuva >= 40.0 and umidade >= 70: return "🚨 ALERTA MÁXIMO", "red"
+    elif chuva >= 15.0 or umidade >= 60: return "⚠️ ATENÇÃO", "orange"
+    else: return "✅ SEGURO", "green"
 
-status_sede, cor_sede, msg_sede = calcular_risco(chuva_sede, umidade_sede)
-status_litoral, cor_litoral, msg_litoral = calcular_risco(chuva_litoral, umidade_litoral)
+status_1, cor_1 = calcular_risco(chuva_1, umidade_1)
+status_2, cor_2 = calcular_risco(chuva_2, umidade_2)
 
 # --- PAINÉIS DE STATUS ---
-st.subheader("📊 Painel de Risco Operacional (Dados de Hoje)")
+st.subheader(f"📊 Telemetria Operacional: {dados_foco['municipio']}")
 col1, col2 = st.columns(2)
 
 with col1:
-    st.metric("Sede Urbana (Centro)", status_sede, f"{chuva_sede:.1f} mm chuva")
-    if cor_sede == "red": st.error(msg_sede)
-    elif cor_sede == "orange": st.warning(msg_sede)
-    else: st.success(msg_sede)
-    st.caption(f"Sensores: Solo em {umidade_sede}%")
+    st.metric(dados_foco["setor_1"], status_1, f"{chuva_1:.1f} mm")
+    if cor_1 == "red": st.error("Risco alto de alagamento!")
+    elif cor_1 == "orange": st.warning("Condições instáveis.")
+    else: st.success("Área segura.")
+    st.caption(f"Solo local: {umidade_1}% de umidade.")
 
 with col2:
-    st.metric("Litoral (Praia do Forte)", status_litoral, f"{chuva_litoral:.1f} mm chuva")
-    if cor_litoral == "red": st.error(msg_litoral)
-    elif cor_litoral == "orange": st.warning(msg_litoral)
-    else: st.success(msg_litoral)
-    st.caption(f"Sensores: Solo em {umidade_litoral}%")
+    st.metric(dados_foco["setor_2"], status_2, f"{chuva_2:.1f} mm")
+    if cor_2 == "red": st.error("Risco alto de alagamento!")
+    elif cor_2 == "orange": st.warning("Condições instáveis.")
+    else: st.success("Área segura.")
+    st.caption(f"Solo local: {umidade_2}% de umidade.")
 
-# --- MAPA DE MONITORAMENTO ---
-st.subheader("🗺️ Painel de Monitoramento Geográfico")
-mapa = folium.Map(location=[-12.550, -38.150], zoom_start=11)
+# --- MAPA DINÂMICO ---
+st.subheader("🗺️ Radar Geográfico Local")
+mapa = folium.Map(location=[dados_foke := dados_foco["lat_centro"], dados_foco["lon_centro"]], zoom_start=13)
 
-folium.CircleMarker(
-    location=[LAT_SEDE, LON_SEDE], radius=20, popup=f"Sede: {status_sede}",
-    color=cor_sede, fill=True, fill_color=cor_sede, fill_opacity=0.6
-).add_to(mapa)
-
-folium.CircleMarker(
-    location=[LAT_LITORAL, LON_LITORAL], radius=20, popup=f"Litoral: {status_litoral}",
-    color=cor_litoral, fill=True, fill_color=cor_litoral, fill_opacity=0.6
-).add_to(mapa)
+folium.CircleMarker(location=[dados_foco["lat_1"], dados_foco["lon_1"]], radius=25, color=cor_1, fill=True, fill_color=cor_1, fill_opacity=0.6).add_to(mapa)
+folium.CircleMarker(location=[dados_foco["lat_2"], dados_foco["lon_2"]], radius=25, color=cor_2, fill=True, fill_color=cor_2, fill_opacity=0.6).add_to(mapa)
 
 st_folium(mapa, width=700, height=400)
