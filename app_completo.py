@@ -1,24 +1,21 @@
 import streamlit as st
 import folium
 import requests
-import base64
+import time
 from streamlit_folium import st_folium
 
 # --- CONFIGURAÇÃO DA INTERFACE WEB ---
 st.set_page_config(page_title="Defesa Civil Command Center", layout="centered")
 
-# --- FUNÇÃO SECRETA PARA TOCAR SOM DE SIRENE NO NAVEGADOR ---
+# --- FUNÇÃO CORRIGIDA PARA INJETAR ÁUDIO NO NAVEGADOR ---
 def disparar_som_sirene():
-    # Link de um som público de sirene de emergência curto (formato MP3/WAV)
-    som_url = "https://soundjay.com" # Bipe de Alerta Limpo
-    
-    # Cria o comando em HTML/Audio que força o navegador a tocar o som
+    # Som oficial de bipe curto de alerta eletrônico militar
+    som_url = "https://soundjay.com"
     html_audio = f"""
-    <audio autoplay>
+    <audio autoplay loop>
         <source src="{som_url}" type="audio/mp3">
     </audio>
     """
-    # Injeta o áudio discretamente na página da prefeitura
     st.components.v1.html(html_audio, height=0)
 
 # --- BANCO DE DADOS DE LICENÇAS ---
@@ -47,15 +44,12 @@ if chave_digitada not in CHAVES_SISTEMA:
 dados_foco = CHAVES_SISTEMA[chave_digitada]
 st.success(f"✅ Conectado com sucesso para {dados_foco['municipio']}!")
 
-# --- CONFIGURAÇÃO DO TEMPORIZADOR AUTOMÁTICO (RECARGA A CADA 5 MINUTOS) ---
-# Em produção, mudamos para 300 segundos (5 minutos). Para testes, deixamos 10 segundos!
-TEMPO_ATUALIZACAO_SEGUNDOS = 10 
-
+# --- CONFIGURAÇÃO DO MODO DE OPERAÇÃO ---
 st.sidebar.markdown("---")
-st.sidebar.header("📡 Configuração do Alarme")
-modo_operacao = st.sidebar.radio("Origem dos Dados:", ("Satélite (Tempo Real)", "Simulador (Manual)"))
+st.sidebar.header("📡 Origem dos Dados")
+modo_operacao = st.sidebar.radio("Selecione:", ("Satélite (Tempo Real)", "Simulador (Manual)"))
 
-# --- LÓGICA MANUAL OU AUTOMÁTICA ---
+# --- LÓGICA DE DADOS REAIS OU SIMULADOS ---
 if modo_operacao == "Simulador (Manual)":
     st.sidebar.markdown("---")
     st.sidebar.subheader("🕹️ Controles do Simulador")
@@ -74,7 +68,7 @@ else:
     chuva_1, umidade_1 = buscar_dados_tempo_real(dados_foco["lat_1"], dados_foco["lon_1"])
     chuva_2, umidade_2 = buscar_dados_tempo_real(dados_foco["lat_2"], dados_foco["lon_2"])
 
-# --- PROCESSAMENTO DOS ALERTAS ---
+# --- CÁLCULO DE RISCO ---
 def calcular_risco(chuva, umidade, lim_chuva, lim_umid):
     if chuva >= lim_chuva and umidade >= lim_umid: return "🚨 ALERTA MÁXIMO", "red"
     elif chuva >= (lim_chuva / 2) or umidade >= (lim_umid - 15): return "⚠️ ATENÇÃO", "orange"
@@ -83,11 +77,13 @@ def calcular_risco(chuva, umidade, lim_chuva, lim_umid):
 status_1, cor_1 = calcular_risco(chuva_1, umidade_1, dados_foco["padrao_chuva"], dados_foco["padrao_umidade"])
 status_2, cor_2 = calcular_risco(chuva_2, umidade_2, dados_foco["padrao_chuva"], dados_foco["padrao_umidade"])
 
-# --- DISPARADOR ATIVO DA SIRENE ---
-# Se qualquer um dos setores entrar em Alerta Máximo (Vermelho), o som toca!
+# --- 🚨 BOTÃO COLETIVO DE SIRENE DE ACORDO COM O BLOQUEIO DOS NAVEGADORES ---
 if cor_1 == "red" or cor_2 == "red":
-    st.sidebar.error("🔊 SIRENE ATIVA: PERIGO DE ENCHENTE!")
-    disparar_som_sirene()
+    st.error("🚨 CRÍTICO: CONDIÇÃO DE INUNDAÇÃO ATINGIDA!")
+    # O botão obriga o clique humano, desarmando o bloqueio de som do celular
+    if st.button("🔊 ACIONAR SIRENE DE EMERGÊNCIA AUDÍVEL"):
+        disparar_som_sirene()
+        st.success("🔔 Alarme sonoro injetado na sala de controle.")
 
 # --- PAINÉIS DE STATUS ---
 st.subheader(f"📊 Telemetria Operacional: {dados_foco['municipio']}")
@@ -106,13 +102,12 @@ with col2:
     else: st.success("Área segura.")
 
 # --- MAPA DINÂMICO ---
+st.subheader("🗺️ Radar Geográfico Local")
 mapa = folium.Map(location=[dados_foco["lat_centro"], dados_foco["lon_centro"]], zoom_start=13)
 folium.CircleMarker(location=[dados_foco["lat_1"], dados_foco["lon_1"]], radius=25, color=cor_1, fill=True, fill_color=cor_1, fill_opacity=0.6).add_to(mapa)
 folium.CircleMarker(location=[dados_foco["lat_2"], dados_foco["lon_2"]], radius=25, color=cor_2, fill=True, fill_color=cor_2, fill_opacity=0.6).add_to(mapa)
 st_folium(mapa, width=700, height=400)
 
-# --- CRONÔMETRO DE REPETIÇÃO ---
-# Faz a página recarregar sozinha a cada x segundos para checar o satélite e retocar a sirene!
-import time
-time.sleep(TEMPO_ATUALIZACAO_SEGUNDOS)
+# --- RECARGA AUTOMÁTICA A CADA 10 SEGUNDOS ---
+time.sleep(10)
 st.rerun()
