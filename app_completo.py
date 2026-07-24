@@ -9,6 +9,45 @@ from streamlit_folium import st_folium
 # --- CONFIGURAÇÃO DA INTERFACE WEB ---
 st.set_page_config(page_title="Defesa Civil Command Center", layout="centered")
 
+# --- DESIGN PERSONALIZADO DE ALTA TECNOLOGIA (TEMA ESCURO PREMIUM CORRIGIDO) ---
+st.markdown("""
+    <style>
+        /* Altera o fundo da tela e a cor do texto principal */
+        .stApp {
+            background-color: #0E1117;
+            color: #FFFFFF;
+        }
+        /* Altera o visual do menu lateral */
+        [data-testid="stSidebar"] {
+            background-color: #1A1C24;
+            border-right: 1px solid #FF4B4B;
+        }
+        /* Altera os títulos e textos para branco */
+        h1, h2, h3, h4, h5, h6, p, label {
+            color: #FFFFFF !important;
+        }
+        /* Destaca as caixas de métricas operacionais */
+        [data-testid="stMetricValue"] {
+            color: #FF4B4B !important;
+            font-weight: bold;
+        }
+        /* 🔥 CORREÇÃO DO BOTÃO DE DOWNLOAD VISÍVEL */
+        .stDownloadButton button {
+            background-color: #FF4B4B !important;
+            color: #FFFFFF !important;
+            border: 1px solid #FF4B4B !important;
+            font-weight: bold !important;
+            width: 100% !important;
+        }
+        /* Efeito ao passar o mouse por cima do botão de download */
+        .stDownloadButton button:hover {
+            background-color: #CC3333 !important;
+            color: #FFFFFF !important;
+            border: 1px solid #CC3333 !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # --- FUNÇÃO DO ALARME NATIVO (SIRENE EM JAVASCRIPT) ---
 def disparar_som_sirene():
     js_alarme = """
