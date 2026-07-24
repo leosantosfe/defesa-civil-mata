@@ -2,28 +2,24 @@ import streamlit as st
 import folium
 import requests
 import time
+import pandas as pd
+from datetime import datetime
 from streamlit_folium import st_folium
 
 # --- CONFIGURAÇÃO DA INTERFACE WEB ---
 st.set_page_config(page_title="Defesa Civil Command Center", layout="centered")
 
-# --- FUNÇÃO CORRIGIDA COM SCRIPT NATIVO (BURLA O BLOQUEIO DE ÁUDIO) ---
+# --- FUNÇÃO DO ALARME NATIVO (SIRENE EM JAVASCRIPT) ---
 def disparar_som_sirene():
-    # Injeta um código JavaScript puro no navegador para soltar o bipe nativo do sistema
     js_alarme = """
     <script>
-        // Dispara o som de bipe nativo do processador do celular/PC
         var context = new (window.AudioContext || window.webkitAudioContext)();
         var osc = context.createOscillator();
-        osc.type = 'sawtooth'; // Som estilo sirene eletrônica
-        osc.frequency.setValueAtTime(800, context.currentTime); // Frequência do alarme
+        osc.type = 'sawtooth'; 
+        osc.frequency.setValueAtTime(800, context.currentTime); 
         osc.connect(context.destination);
         osc.start();
-        
-        // Faz o alarme apitar por 2 segundos e para sozinho
         setTimeout(function(){ osc.stop(); }, 2000);
-        
-        // Abre o aviso visual na tela do operador
         alert("🚨 ALERTA GERAL DE EVACUAÇÃO: RISCO IMINENTE DE INUNDAÇÃO!");
     </script>
     """
@@ -34,7 +30,7 @@ CHAVES_SISTEMA = {
     "ALAG75": {"municipio": "Alagoinhas - BA", "lat_centro": -12.135, "lon_centro": -38.423, "setor_1": "Centro Urbano", "lat_1": -12.135, "lon_1": -38.423, "setor_2": "Bairro Silva Jardim", "lat_2": -12.142, "lon_2": -38.431, "padrao_chuva": 35.0, "padrao_umidade": 65},
     "CAMA71": {"municipio": "Camaçari - BA", "lat_centro": -12.697, "lon_centro": -38.324, "setor_1": "Centro Urbano", "lat_1": -12.697, "lon_1": -38.324, "setor_2": "Bairro Gleba C", "lat_2": -12.685, "lon_2": -38.330, "padrao_chuva": 25.0, "padrao_umidade": 60},
     "DIAS71": {"municipio": "Dias d'Ávila - BA", "lat_centro": -12.611, "lon_centro": -38.296, "setor_1": "Centro Sede", "lat_1": -12.611, "lon_1": -38.296, "setor_2": "Bairro Imbassay", "lat_2": -12.602, "lon_2": -38.305, "padrao_chuva": 30.0, "padrao_umidade": 65},
-    "MATA71": {"municipio": "Mata de São João - BA", "lat_centro": -12.550, "lon_centro": -38.150, "setor_1": "Sede Urbana (Centro)", "lat_1": -12.530, "lon_1": -38.300, "setor_2": "Litoral (Praia do Forte)", "lat_2": -12.571, "lon_2": -38.001, "padrao_chuva": 40.0, "padrao_umidade": 70},
+    "MATA71": {"municipio": "Mata de São João - BA", "lat_centro": -12.550, "lon_centro": -38.150, "setor_1": "Sede Urbano (Centro)", "lat_1": -12.530, "lon_1": -38.300, "setor_2": "Litoral (Praia do Forte)", "lat_2": -12.571, "lon_2": -38.001, "padrao_chuva": 40.0, "padrao_umidade": 70},
     "SALV71": {"municipio": "Salvador - BA", "lat_centro": -12.971, "lon_centro": -38.510, "setor_1": "Centro Histórico", "lat_1": -12.971, "lon_1": -38.510, "setor_2": "Bairro Cidade Baixa", "lat_2": -12.935, "lon_2": -38.501, "padrao_chuva": 30.0, "padrao_umidade": 65}
 }
 
@@ -89,10 +85,31 @@ status_1, cor_1 = calcular_risco(chuva_1, umidade_1, dados_foco["padrao_chuva"],
 status_2, cor_2 = calcular_risco(chuva_2, umidade_2, dados_foco["padrao_chuva"], dados_foco["padrao_umidade"])
 
 # --- DISPARADOR DA SIRENE ---
+acionado = False
 if cor_1 == "red" or cor_2 == "red":
     st.error("🚨 CRÍTICO: CONDIÇÃO DE INUNDAÇÃO ATINGIDA!")
     if st.button("🔊 ACIONAR ALARME DE EMERGÊNCIA"):
         disparar_som_sirene()
+        acionado = True
+
+# --- GERADOR DE RELATÓRIOS PARA DOWNLOAD ---
+st.sidebar.markdown("---")
+st.sidebar.header("📋 Relatório do Sistema")
+
+dados_relatorio = pd.DataFrame({
+    "Setor Monitorado": [dados_foco["setor_1"], dados_foco["setor_2"]],
+    "Chuva Registrada (mm)": [chuva_1, chuva_2],
+    "Umidade do Solo (%)": [umidade_1, umidade_2],
+    "Nível de Risco": [status_1, status_2]
+})
+
+csv = dados_relatorio.to_csv(index=False).encode('utf-8')
+st.sidebar.download_button(
+    label="📥 Baixar Dados de Auditoria (CSV)",
+    data=csv,
+    file_name=f"relatorio_defesa_civil_{dados_foco['municipio']}.csv",
+    mime="text/csv",
+)
 
 # --- PAINÉIS DE STATUS ---
 st.subheader(f"📊 Telemetria Operacional: {dados_foco['municipio']}")
@@ -116,6 +133,24 @@ mapa = folium.Map(location=[dados_foco["lat_centro"], dados_foco["lon_centro"]],
 folium.CircleMarker(location=[dados_foco["lat_1"], dados_foco["lon_1"]], radius=25, color=cor_1, fill=True, fill_color=cor_1, fill_opacity=0.6).add_to(mapa)
 folium.CircleMarker(location=[dados_foco["lat_2"], dados_foco["lon_2"]], radius=25, color=cor_2, fill=True, fill_color=cor_2, fill_opacity=0.6).add_to(mapa)
 st_folium(mapa, width=700, height=400)
+
+# --- PAINEL DE LOGS EM TEMPO REAL ---
+st.markdown("---")
+st.subheader("🕵️ Histórico de Eventos e Auditoria (Logs)")
+
+hora_atual = datetime.now().strftime("%H:%M:%S")
+log_status = "CRÍTICO" if (cor_1 == "red" or cor_2 == "red") else "NORMAL"
+
+eventos = [
+    {"Horário": hora_atual, "Evento": f"Varredura executada via {modo_operacao}", "Status": "OK"},
+    {"Horário": hora_atual, "Evento": f"Leitura {dados_foco['setor_1']}: {chuva_1:.1f}mm / {dados_foco['setor_2']}: {chuva_2:.1f}mm", "Status": log_status},
+]
+
+if acionado:
+    eventos.insert(0, {"Horário": hora_atual, "Evento": "SIRENE DE EVACUAÇÃO DISPARADA MANUALMENTE", "Status": "ALERTA"})
+
+df_logs = pd.DataFrame(eventos)
+st.table(df_logs)
 
 # --- RECARGA AUTOMÁTICA EM 10 SEGUNDOS ---
 time.sleep(10)
